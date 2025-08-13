@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>New Canada Warp Drive ⇄ Planetary Sim (Policy‑Crux Fusion)</title>
+<style>
+  :root{
+    --bg: radial-gradient(1300px 900px at 50% 15%, #0e1220 0%, #0a0d17 55%, #06080f 100%);
+    --ink:#e8f0ff; --muted:#a5b1cc; --edge:#6aa8ff; --glow:#79ffe1; --node:#ffffff;
+    --ok:#47ff9d; --warn:#ffd35c; --bad:#ff6a6a;
+    --panel:#161a22; --card:#1c2230; --text:#e8eef7; --hl:#9f7aea;
+    --shadow: 0 10px 30px rgba(0,0,0,.45), inset 0 0 40px rgba(255,255,255,.03);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{
+    display:flex;flex-direction:column;background: var(--bg), #0a0d17; color:var(--ink);
+    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;
+  }
+  header{padding:16px clamp(16px,4vw,36px); display:flex; justify-content:space-between; align-items:center}
+  .title{
+    font-weight:900;font-size:clamp(22px,3.8vw,44px);
+    padding:.35rem .9rem;border-radius:16px;
+    background:linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,.02));
+    border:1px solid rgba(255,255,255,.08); box-shadow:var(--shadow);
+  }
+  .sub{font-size:12px; color:var(--muted)}
+
+  .wrap{display:grid;gap:16px; grid-template-columns: 1.15fr .9fr; padding: clamp(10px,3vw,24px)}
+  @media (max-width: 1200px){ .wrap{grid-template-columns: 1fr} }
+
+  .stage,.graph,.panel{
+    background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+    border:1px solid rgba(255,255,255,.08); border-radius:20px; box-shadow: var(--shadow);
+  }
+  .stage{position:relative; min-height:560px; overflow:hidden}
+  .graph{position:relative; min-height:560px; overflow:hidden}
+  svg{width:100%; height:100%; display:block}
+  canvas{display:block; width:100%; height:100%; background:linear-gradient(180deg,#0b0e17,#0a0d14)}
+
+  /* Graph styling */
+  .edge{ stroke: var(--edge); stroke-opacity:.38; stroke-width: 5; fill:none; filter:url(#edgeGlow) }
+  .edge.active{ stroke-opacity:.85; stroke-width:8 }
+  .edge.main{ stroke-width:10; stroke-opacity:.95 }
+  .node{ fill: var(--node); stroke:#94c6ff; stroke-width:3; filter:url(#nodeGlow); transition: transform .12s ease }
+  .node-wrap:hover .node{ transform: scale(1.06) }
+  .hit{ fill: transparent; pointer-events: all }
+  .label{font-weight:800; font-size: 14.5px; fill: var(--ink); paint-order: stroke; stroke: rgba(0,0,0,.55); stroke-width:3px; pointer-events:none;}
+  .sublabel{ font-size:12px; fill: var(--muted); pointer-events:none }
+  #particles{ pointer-events:none }
+  .particle{ fill: var(--glow); stroke: #cffff0; stroke-width: .6 }
+  .warping{ animation: warpBlink .6s ease-in-out 1 }
+  @keyframes warpBlink{0%{opacity:1;transform:scale(1)}35%{opacity:0;transform:scale(.25)}65%{opacity:0;transform:scale(.25)}100%{opacity:1;transform:scale(1)}}
+
+  /* Unified panel */
+  .panel{ padding:16px }
+  .panel h2{ margin:0 0 10px; font-size:18px; letter-spacing:.4px }
+  .grid2{display:grid; grid-template-columns: 1fr 1fr; gap:12px}
+  @media (max-width: 900px){ .grid2{grid-template-columns:1fr} }
+  .group{ margin:10px 0 16px; padding:10px; border-radius:12px; border:1px dashed rgba(255,255,255,.12) }
+  .group h3{ margin:0 0 8px; font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.6px }
+  .row{ display:grid; grid-template-columns: 1fr auto; gap:10px; align-items:center; margin: 8px 0 }
+  .row label{ font-size:13px }
+  .row output{ font-variant-numeric: tabular-nums; color:#8bffcc }
+  input[type="range"]{ width:100%; -webkit-appearance:none; background:transparent; height:28px }
+  input[type="range"]::-webkit-slider-runnable-track{ height:8px; border-radius:8px; background: linear-gradient(90deg,#223,#2b3a5f); border:1px solid rgba(255,255,255,.12) }
+  input[type="range"]::-webkit-slider-thumb{ -webkit-appearance:none; width:18px; height:18px; margin-top:-5px; border-radius:50%; background:#fff; border:2px solid #94c6ff; box-shadow: 0 0 0 6px rgba(121,255,225,.18) }
+  input[type="range"]::-moz-range-track{ height:8px; border-radius:8px; background:#2b3a5f }
+  input[type="range"]::-moz-range-thumb{ width:18px; height:18px; border-radius:50%; background:#fff; border:2px solid #94c6ff; box-shadow: 0 0 0 6px rgba(121,255,225,.18) }
+  .controls{ display:flex; gap:10px; flex-wrap:wrap }
+  .btn{ background:#121a2a; color:var(--ink); border:1px solid rgba(255,255,255,.16); border-radius:12px; padding:10px 12px; cursor:pointer; transition: transform .08s ease, border-color .2s ease, box-shadow .2s ease; }
+  .btn:hover{ transform: translateY(-1px); border-color: rgba(121,255,225,.6); box-shadow: 0 0 0 4px rgba(121,255,225,.1) inset }
+  .mini{ font-size:12.5px; padding:6px 10px; opacity:.9 }
+  textarea.code{width:100%; min-height:120px; resize:vertical; border:1px solid #283048; border-radius:12px; background:#151a26; color:#e8eef7; padding:10px; outline:none; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px}
+
+  .meters{ display:grid; grid-template-columns: repeat(6,1fr); gap:10px; margin-top:8px }
+  @media (max-width: 1200px){ .meters{grid-template-columns: repeat(3,1fr)} }
+  .meter{ background:#0e1422; border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:10px; text-align:center }
+  .meter .v{ font-size:18px; font-weight:800 }
+  .ok{ color:var(--ok) } .warn{ color:var(--warn) } .bad{ color:var(--bad) }
+
+  footer{ text-align:center; font-size:12.5px; color:var(--muted); padding:8px 12px 18px; user-select:none }
+</style>
+</head>
+<body>
+  <header>
+    <div class="title">New Canada Warp Drive ⇄ Planetary Lab • <span style="font-weight:600;color:#bdefff">Policy‑Crux Fusion</span></div>
+    <div class="sub">Infosophic: Gösta Greimel • Simulonic: Hrishi Mukherjee • Integration: Greimel & Mukherjee • OBT: Oliver Boeschenstein</div>
+  </header>
+
+  <div class="wrap">
+    <!-- Globe / Lens canvas -->
+    <div class="stage">
+      <canvas id="stage"></canvas>
+    </div>
+
+    <!-- Warp Drive Graph -->
+    <div class="graph">
+      <svg id="graph" viewBox="0 0 1000 680" role="img" aria-labelledby="svgTitle svgDesc">
+        <title id="svgTitle">Warp Drive Interaction Graph</title>
+        <desc id="svgDesc">INC, MEA, HO plus 12 SFGs in a toroidal ring; complete graph; continuous and burst particle flows; warp on repeated activation.</desc>
+        <defs>
+          <filter id="edgeGlow" x="-50%" y="-50%" width="200%" height="200%">
+            <feDropShadow dx="0" dy="0" stdDeviation="4" flood-color="#6aa8ff" flood-opacity=".55"/>
+            <feDropShadow dx="0" dy="0" stdDeviation="10" flood-color="#79ffe1" flood-opacity=".28"/>
+          </filter>
+          <filter id="nodeGlow" x="-50%" y="-50%" width="200%" height="200%">
+            <feDropShadow dx="0" dy="0" stdDeviation="4" flood-color="#ffffff" flood-opacity=".9"/>
+            <feDropShadow dx="0" dy="0" stdDeviation="10" flood-color="#79ffe1" flood-opacity=".4"/>
+          </filter>
+          <linearGradient id="flux" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#6aa8ff"/><stop offset="100%" stop-color="#79ffe1"/>
+          </linearGradient>
+        </defs>
+        <g id="edges"></g>
+        <g id="particles"></g>
+        <g id="nodes"></g>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Unified Control Panel -->
+  <div class="panel" id="panel">
+    <h2>Unified Control Panel</h2>
+    <div class="grid2">
+      <div class="group">
+        <h3>Warp System Bias</h3>
+        <div class="row"><label>Resonance Bias <output id="o_bias">0.50</output></label><input id="bias" type="range" min="0" max="1" step="0.01" value="0.50"/></div>
+        <div class="row"><label>Flux Intensity <output id="o_flux">0.80</output></label><input id="flux" type="range" min="0" max="1" step="0.01" value="0.80"/></div>
+        <div class="controls"><button class="btn" id="toggle">Pause</button><button class="btn mini" id="reset">Reset</button><button class="btn mini" id="burst">Global Burst</button></div>
+      </div>
+      <div class="group">
+        <h3>Planet & Lens</h3>
+        <div class="row" style="grid-template-columns:auto auto 1fr auto;gap:8px;align-items:center">
+          <span class="sub">Planet</span>
+          <select id="selPlanet" class="btn"><option value="earth">Earth</option><option value="mars">Mars</option></select>
+          <span class="sub">Lens r°</span>
+          <input id="rngLensR" type="range" min="5" max="60" step="1" value="20"/>
+        </div>
+        <div class="row" style="grid-template-columns:auto 1fr auto auto auto;gap:8px">
+          <span class="sub">Intent</span>
+          <select id="selAxis" class="btn"><option value="radial">radial</option><option value="lon">longitude</option><option value="lat">latitude</option></select>
+          <span class="sub">Strength</span><input id="rngIntent" type="range" min="0" max="3" step="0.05" value="1.20"/>
+          <span class="sub mono" id="labIntent">1.20</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="group">
+        <h3>Pareto / Field</h3>
+        <div class="row"><label>τ <output id="labTau">0.55</output></label><input id="rngTau" type="range" min="0.05" max="1.5" step="0.01" value="0.55"></div>
+        <div class="row" style="grid-template-columns:auto auto 1fr auto;gap:8px;align-items:center">
+          <input id="chkAutoPareto" type="checkbox" checked/><span class="sub">Auto Pareto (keep ~20% head)</span>
+          <span class="sub">Head Mass</span><input id="rngTargetMass" type="range" min="0.50" max="0.95" step="0.01" value="0.80"/>
+        </div>
+        <div class="row"><label>Quality Q <output id="labQ">1.00</output></label><input id="rngQ" type="range" min="0.5" max="3" step="0.05" value="1.00"></div>
+        <div class="row"><label>ν (DOF) <output id="labNu">3</output></label><input id="rngNu" type="range" min="1" max="12" step="1" value="3"></div>
+        <div class="row"><label>Points <output id="labPts">900</output></label><input id="rngPts" type="range" min="60" max="3000" step="20" value="900"></div>
+        <div class="row"><label>Mood Strength <output id="labMood">1.00</output></label><input id="rngMood" type="range" min="0" max="2" step="0.05" value="1.00"></div>
+        <div class="controls"><button class="btn mini" id="btnShuffle">Shuffle Seed</button><button class="btn mini" id="btnClear">Clear Lock‑ons</button></div>
+      </div>
+      <div class="group">
+        <h3>SimuLang Hook (mini)</h3>
+        <textarea id="simTxt" class="code" spellcheck="false"></textarea>
+        <div class="controls"><button class="btn mini" id="btnApply">Apply</button><button class="btn mini" id="btnReset">Reset</button></div>
+      </div>
+    </div>
+
+    <div class="meters">
+      <div class="meter"><div>Coupling</div><div class="v" id="couplingVal">0.00</div></div>
+      <div class="meter"><div>Coherence</div><div class="v" id="coherenceVal">0.00</div></div>
+      <div class="meter"><div>Warp Readiness</div><div class="v" id="readinessVal">Idle</div></div>
+      <div class="meter"><div>ds² (Green)</div><div class="v" id="statG">0.000</div></div>
+      <div class="meter"><div>ds² (Vacuum)</div><div class="v" id="statV">0.000</div></div>
+      <div class="meter"><div>Head k/N • Mass</div><div class="v" id="statK">0/0 • 0.00</div></div>
+    </div>
+
+    <p class="sub" style="margin:8px 0 0">Policy‑Crux coupling: Warp ⇄ Planet share state. Warp‑Ready boosts Q; high ds² boosts coupling & coherence; lens radius nudges with readiness.</p>
+  </div>
+
+  <footer>Property of Copyright Hrishi Mukherjee Horizons 2025</footer>
+
+<script>
+/* ========================= Shared Fusion State ========================= */
+const Fusion = { ds:{g:0,v:0,local:0, headK:0, headN:0, headMass:0}, warp:{coupling:0, coherence:0, readiness:'Idle'} };
+
+/* ========================= Globe / Lens (Canvas) ========================= */
+const stage = document.getElementById('stage');
+const wrapEl = stage.parentElement;
+function fitCanvas(){
+  const dpr = Math.max(1, window.devicePixelRatio||1);
+  stage.width = Math.floor(wrapEl.clientWidth * dpr);
+  stage.height = Math.floor(wrapEl.clientHeight * dpr);
+  stage.getContext('2d').setTransform(dpr,0,0,dpr,0,0);
+}
+window.addEventListener('resize', fitCanvas, {passive:true});
+fitCanvas();
+
+/* RNG + math */
+function rng(seed){ let t = seed>>>0; return ()=>{ t += 0x6D2B79F5; let r = Math.imul(t ^ (t>>>15), 1|t); r ^= r + Math.imul(r ^ (r>>>7), 61|r); return ((r ^ (r>>>14))>>>0)/4294967296; }; }
+function randn(r){ let u=1-r(), v=1-r(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
+function chiSquare(df, r){ let s=0; for(let i=0;i<df;i++){ const z=randn(r); s += z*z; } return s; }
+function studentT(df, r){ const z=randn(r); return z / Math.sqrt(chiSquare(df,r)/df); }
+function softmax(arr, temp=1){ const m=Math.max(...arr); const ex=arr.map(v=>Math.exp((v-m)/Math.max(1e-6,temp))); const s=ex.reduce((a,b)=>a+b,0); return ex.map(e=>e/s); }
+const toRad = d=>d*Math.PI/180, toDeg = r=>r*180/Math.PI;
+
+/* SimuLang mini */
+const defaultSimuLang = `# SimuLang mini-hook (planetary)\npareto.tau = 0.55\nquality.q = 1.00\nintent.axis = radial\nintent.strength = 1.20\nart.nu = 3\nart.points = 900\nlockon.k = 8\nmood.strength = 1.0\nauto.pareto = true\ntarget.mass = 0.80\n`;
+function parseSimuLang(src){
+  const cfg = { paretoTau:0.55, qualityQ:1.0, intentAxis:'radial', intentStrength:1.2, artNu:3, artPoints:900, lockTopK:8, moodStrength:1.0, autoPareto:true, targetMass:0.80 };
+  const lines = src.split('\n').map(s=>s.trim()).filter(Boolean);
+  for(const l of lines){
+    const m = l.match(/^([a-z.]+)\s*=\s*([^\#]+)(?:\#.*)?$/i); if(!m) continue;
+    const k=m[1].toLowerCase().trim(), v=m[2].trim();
+    if(k==='pareto.tau') cfg.paretoTau = parseFloat(v);
+    if(k==='quality.q') cfg.qualityQ = parseFloat(v);
+    if(k==='intent.axis') cfg.intentAxis = (''+v).toLowerCase();
+    if(k==='intent.strength') cfg.intentStrength = parseFloat(v);
+    if(k==='art.nu') cfg.artNu = Math.max(1, parseInt(v));
+    if(k==='art.points') cfg.artPoints = Math.max(10, Math.min(5000, parseInt(v)));
+    if(k==='lockon.k') cfg.lockTopK = Math.max(0, parseInt(v));
+    if(k==='mood.strength') cfg.moodStrength = Math.max(0, parseFloat(v));
+    if(k==='auto.pareto') cfg.autoPareto = (''+v).toLowerCase()==='true';
+    if(k==='target.mass') cfg.targetMass = Math.min(0.95, Math.max(0.5, parseFloat(v)));
+  }
+  return cfg;
+}
+
+/* Outlooks */
+const DIMENSIONS = ['Creed','Race','Class','Caste','Tribe','Nationality','Continentality','Planetarity','Occupation'];
+let outlook = Object.fromEntries(DIMENSIONS.map(d => [d, +1]));
+function hueForDim(i){ return (i*37)%360; }
+
+/* State */
+let seed = 42;
+let cfg = parseSimuLang(defaultSimuLang);
+let planet = 'earth';
+let lockSet = new Set();
+let points = [];   // [{lon,lat,x,y,sal,dim,mood,visible}]
+let weights = [];
+const ctx = stage.getContext('2d');
+
+/* Globe view (orthographic) */
+const globe = { lon0: 0, lat0: 15, dragging:false, lastX:0, lastY:0 };
+/* Lens on sphere */
+const lens = { lon: 0, lat: 0, ang: 20, mode: 'infosophic', dragging:false };
+
+/* Projection */
+function proj(lon, lat){
+  const R = Math.min(stage.clientWidth, stage.clientHeight)*0.42;
+  const cx = stage.clientWidth/2, cy = stage.clientHeight/2;
+  const lam = toRad(lon), phi = toRad(lat);
+  const lam0 = toRad(globe.lon0), phi0 = toRad(globe.lat0);
+  const cosc = Math.sin(phi0)*Math.sin(phi) + Math.cos(phi0)*Math.cos(phi)*Math.cos(lam-lam0);
+  const visible = cosc >= 0;
+  const x = R * (Math.cos(phi) * Math.sin(lam - lam0)) + cx;
+  const y = R * (Math.cos(phi0)*Math.sin(phi) - Math.sin(phi0)*Math.cos(phi)*Math.cos(lam - lam0)) + cy;
+  return {x,y,visible,R,cx,cy};
+}
+function invProj(x, y){
+  const R = Math.min(stage.clientWidth, stage.clientHeight)*0.42;
+  const cx = stage.clientWidth/2, cy = stage.clientHeight/2;
+  const lam0 = toRad(globe.lon0), phi0 = toRad(globe.lat0);
+  const X = (x - cx)/R, Y = (y - cy)/R;
+  const rho = Math.hypot(X,Y); if(rho>1) return null;
+  const c = Math.asin(rho);
+  let phi = Math.asin( Math.cos(c)*Math.sin(phi0) + (Y * Math.sin(c) * Math.cos(phi0) / (rho||1)) );
+  let lam = lam0 + Math.atan2( X * Math.sin(c), (rho*Math.cos(phi0)*Math.cos(c) - Y*Math.sin(phi0)*Math.sin(c)) );
+  return {lon: ((toDeg(lam)+540)%360)-180, lat: toDeg(phi)};
+}
+
+/* ART sampling on sphere */
+function buildART(){
+  const r = rng(seed);
+  points=[]; let pos=0, neg=0;
+  const baseLon = lens.lon, baseLat = lens.lat;
+  const scaleLon = 40, scaleLat = 25;
+  for(let i=0;i<cfg.artPoints;i++){
+    const dim = DIMENSIONS[i % DIMENSIONS.length];
+    const dlon = studentT(cfg.artNu,r) * scaleLon;
+    const dlat = studentT(cfg.artNu,r) * scaleLat;
+    let lon = ((baseLon + dlon + 540) % 360) - 180;
+    let lat = Math.max(-89.9, Math.min(89.9, baseLat + dlat));
+    let align=0;
+    if(cfg.intentAxis==='lon') align = 1 - Math.min(1, Math.abs(dlon)/scaleLon);
+    else if(cfg.intentAxis==='lat') align = 1 - Math.min(1, Math.abs(dlat)/scaleLat);
+    else { const ang = greatCircleDeg(baseLon, baseLat, lon, lat); align = Math.max(0, 1 - ang/60); }
+    const angDist = greatCircleDeg(baseLon, baseLat, lon, lat);
+    const base = 1/(1 + (angDist/45)**2);
+    const mood = outlook[dim] || +1;
+    const moodGain = 1 + cfg.moodStrength*(mood*0.25);
+    const sal = base * (1 + cfg.intentStrength*align) * moodGain;
+    const P = proj(lon, lat);
+    points.push({lon,lat,x:P.x,y:P.y,visible:P.visible,sal,dim,mood});
+    if(mood>=0) pos++; else neg++;
+  }
+  const maxS = points.reduce((m,p)=>Math.max(m,p.sal),1e-6);
+  for(const p of points){ p.sal/=maxS; }
+  recomputeWeights();
+  lockSet.clear();
+  if(cfg.lockTopK>0){ const top=[...points.map((p,i)=>[p.sal,i])].sort((a,b)=>b[0]-a[0]).slice(0,cfg.lockTopK).map(x=>x[1]); for(const i of top) lockSet.add(i); }
+}
+function recomputeWeights(){ weights = softmax(points.map(p=>p.sal), Math.max(0.05,cfg.paretoTau)); }
+function greatCircleDeg(lon1,lat1,lon2,lat2){ const lam1=toRad(lon1), phi1=toRad(lat1); const lam2=toRad(lon2), phi2=toRad(lat2); const d = 2*Math.asin( Math.sqrt( Math.sin((phi2-phi1)/2)**2 + Math.cos(phi1)*Math.cos(phi2)*Math.sin((lam2-lam1)/2)**2 ) ); return toDeg(d); }
+
+/* Gauges */
+function computeDS2Dual(lockedIdx){
+  if(points.length===0) return {g:0,v:0};
+  let active = lockedIdx.length ? lockedIdx : [...points.map((p,i)=>[p.sal,i])].sort((a,b)=>b[0]-a[0]).slice(0, Math.max(3, Math.floor(points.length*0.05))).map(x=>x[1]);
+  const Qn = cfg.qualityQ;
+  const K = (a,b)=>{ const dx=a.x-b.x, dy=a.y-b.y, d2=dx*dx+dy*dy; return Math.exp(-d2/3000); };
+  const G = (a,b)=>{ const dx=a.x-b.x, dy=a.y-b.y; return 1/(Math.hypot(dx,dy)+1e-3); };
+  let dsG=0, dsV=0;
+  for(const i of active){ for(let j=0;j<points.length;j++){ const wi=weights[i]/Qn, wj=weights[j]/Qn; dsG += wi*wj*K(points[i], points[j]); dsV += wi*wj*G(points[i], points[j]); } }
+  const squash = v => 1 - Math.exp(-v/50);
+  return { g: squash(dsG), v: squash(dsV) };
+}
+function lensPath(ctx){
+  const steps = 180; const alpha = toRad(lens.ang); const lam1 = toRad(lens.lon), phi1 = toRad(lens.lat);
+  ctx.beginPath();
+  for(let i=0;i<=steps;i++){
+    const theta = 2*Math.PI * i/steps;
+    const phi2 = Math.asin( Math.sin(phi1)*Math.cos(alpha) + Math.cos(phi1)*Math.sin(alpha)*Math.cos(theta) );
+    const lam2 = toRad(lens.lon) + Math.atan2( Math.sin(theta)*Math.sin(alpha)*Math.cos(phi1), Math.cos(alpha) - Math.sin(phi1)*Math.sin(phi2) );
+    const P = proj(toDeg(lam2), toDeg(phi2)); if(i===0) ctx.moveTo(P.x,P.y); else ctx.lineTo(P.x,P.y);
+  }
+}
+function lensScores(){
+  const alpha = lens.ang; const useK = (ang)=>Math.exp(-(ang*ang)/ (25)); const useG = (ang)=>1/(ang+1e-2); const kernel = lens.mode==='infosophic' ? useK : useG;
+  let scores = new Float32Array(points.length); let sum=0; let maxScore=1e-6;
+  for(let i=0;i<points.length;i++){
+    if(!points[i].visible) { scores[i]=0; continue; }
+    const ang = greatCircleDeg(lens.lon,lens.lat, points[i].lon, points[i].lat);
+    if(ang>alpha) { scores[i]=0; continue; }
+    const s = (weights[i]/Math.max(0.5,cfg.qualityQ)) * kernel(ang);
+    scores[i]=s; sum+=s; if(s>maxScore) maxScore=s;
+  }
+  for(let i=0;i<scores.length;i++) scores[i]/=maxScore;
+  const dsLocal = 1 - Math.exp(-sum/20);
+  return {scores, dsLocal};
+}
+function headStatsForTarget(targetMass){ const arr = weights.slice().sort((a,b)=>b-a); let cum=0, k=0; for(k=0;k<arr.length;k++){ cum+=arr[k]; if(cum>=targetMass) break; } return {k:k+1, headFrac:(k+1)/arr.length, mass:Math.min(1,cum)}; }
+function autoAdjustTau(dtSec){ const {headFrac} = headStatsForTarget(cfg.targetMass); const targetHeadFrac = 0.20; const error = headFrac - targetHeadFrac; const step = -1.0 * error * dtSec; cfg.paretoTau = Math.min(1.5, Math.max(0.05, cfg.paretoTau + step)); rngTau.value = cfg.paretoTau; labTau.textContent = cfg.paretoTau.toFixed(2); recomputeWeights(); }
+
+/* UI bindings (planet side) */
+const rngTau = document.getElementById('rngTau');
+const labTau = document.getElementById('labTau');
+const chkAutoPareto = document.getElementById('chkAutoPareto');
+const rngTargetMass = document.getElementById('rngTargetMass');
+const rngQ = document.getElementById('rngQ');
+const labQ = document.getElementById('labQ');
+const rngIntent = document.getElementById('rngIntent');
+const labIntent = document.getElementById('labIntent');
+const selAxis = document.getElementById('selAxis');
+const rngNu = document.getElementById('rngNu');
+const labNu = document.getElementById('labNu');
+const rngPts = document.getElementById('rngPts');
+const labPts = document.getElementById('labPts');
+const rngMood = document.getElementById('rngMood');
+const labMood = document.getElementById('labMood');
+const simTxt = document.getElementById('simTxt');
+const btnApply = document.getElementById('btnApply');
+const btnReset = document.getElementById('btnReset');
+const btnShuffle = document.getElementById('btnShuffle');
+const btnClear = document.getElementById('btnClear');
+const selPlanet = document.getElementById('selPlanet');
+const rngLensR = document.getElementById('rngLensR');
+
+simTxt.value = defaultSimuLang;
+
+function syncControls(){
+  rngTau.value = cfg.paretoTau; labTau.textContent = cfg.paretoTau.toFixed(2);
+  rngTargetMass.value = cfg.targetMass;
+  rngQ.value = cfg.qualityQ; labQ.textContent = cfg.qualityQ.toFixed(2);
+  rngIntent.value = cfg.intentStrength; labIntent.textContent = cfg.intentStrength.toFixed(2);
+  selAxis.value = cfg.intentAxis; rngNu.value = cfg.artNu; labNu.textContent = cfg.artNu; rngPts.value = cfg.artPoints; labPts.textContent = cfg.artPoints; rngMood.value = cfg.moodStrength; labMood.textContent = cfg.moodStrength.toFixed(2);
+  rngLensR.value = lens.ang;
+}
+function buildOutlookGrid(){} // (omitted UI toggles to keep panel compact — logic remains available)
+
+selPlanet.addEventListener('change', e=>{ planet = e.target.value; });
+rngTau.addEventListener('input', e=>{ cfg.paretoTau=parseFloat(e.target.value); labTau.textContent=cfg.paretoTau.toFixed(2); recomputeWeights(); });
+chkAutoPareto.addEventListener('change', e=>{ cfg.autoPareto = e.target.checked; });
+rngTargetMass.addEventListener('input', e=>{ cfg.targetMass = parseFloat(e.target.value); });
+rngQ.addEventListener('input', e=>{ cfg.qualityQ=parseFloat(e.target.value); labQ.textContent=cfg.qualityQ.toFixed(2); });
+rngIntent.addEventListener('input', e=>{ cfg.intentStrength=parseFloat(e.target.value); labIntent.textContent=cfg.intentStrength.toFixed(2); buildART(); });
+selAxis.addEventListener('change', e=>{ cfg.intentAxis=e.target.value; buildART(); });
+rngNu.addEventListener('input', e=>{ cfg.artNu=parseInt(e.target.value,10); labNu.textContent=cfg.artNu; buildART(); });
+rngPts.addEventListener('input', e=>{ cfg.artPoints=parseInt(e.target.value,10); labPts.textContent=cfg.artPoints; buildART(); });
+rngMood.addEventListener('input', e=>{ cfg.moodStrength=parseFloat(e.target.value); labMood.textContent=cfg.moodStrength.toFixed(2); buildART(); });
+btnShuffle.addEventListener('click', ()=>{ seed=(seed*1664525+1013904223)>>>0; buildART(); });
+btnClear.addEventListener('click', ()=>{ lockSet.clear(); });
+btnApply.addEventListener('click', ()=>{ const parsed=parseSimuLang(simTxt.value); cfg={...cfg,...parsed}; syncControls(); buildART(); });
+btnReset.addEventListener('click', ()=>{ simTxt.value=defaultSimuLang; cfg=parseSimuLang(simTxt.value); syncControls(); buildART(); });
+rngLensR.addEventListener('input', e=>{ lens.ang = parseInt(e.target.value,10); });
+
+/* Interaction: globe + lens */
+stage.addEventListener('mousedown', (e)=>{
+  const rect = stage.getBoundingClientRect(); const x=e.clientX-rect.left, y=e.clientY-rect.top; const inv = invProj(x,y);
+  if(inv){ const ang = greatCircleDeg(inv.lon, inv.lat, lens.lon, lens.lat); if(ang <= lens.ang){ lens.dragging=true; } else { globe.dragging=true; globe.lastX=x; globe.lastY=y; } }
+});
+window.addEventListener('mouseup', ()=>{ globe.dragging=false; lens.dragging=false; });
+window.addEventListener('mousemove', (e)=>{
+  const rect = stage.getBoundingClientRect(); const x=e.clientX-rect.left, y=e.clientY-rect.top;
+  if(globe.dragging){ const dx = x - globe.lastX, dy = y - globe.lastY; globe.lon0 = ((globe.lon0 - dx*0.2 + 540)%360)-180; globe.lat0 = Math.max(-80, Math.min(80, globe.lat0 + dy*0.2)); globe.lastX=x; globe.lastY=y; for(const p of points){ const P=proj(p.lon,p.lat); p.x=P.x; p.y=P.y; p.visible=P.visible; } }
+  else if(lens.dragging){ const inv = invProj(x,y); if(inv){ lens.lon = inv.lon; lens.lat = inv.lat; } }
+});
+stage.addEventListener('click', (e)=>{
+  if(globe.dragging || lens.dragging) return; const rect=stage.getBoundingClientRect(); const x=e.clientX-rect.left, y=e.clientY-rect.top; const inv = invProj(x,y); if(!inv) return; let best=-1, bd=1e9; for(let i=0;i<points.length;i++){ if(!points[i].visible) continue; const dx=points[i].x-x, dy=points[i].y-y, d=dx*dx+dy*dy; if(d<bd){ bd=d; best=i; } } if(best>=0){ if(lockSet.has(best)) lockSet.delete(best); else lockSet.add(best); }
+});
+
+/* Render globe */
+const statG = document.getElementById('statG');
+const statV = document.getElementById('statV');
+const statK = document.getElementById('statK');
+let lastGlobeT = performance.now();
+function drawGlobeBase(){
+  const {cx, cy, R} = proj(globe.lon0, globe.lat0);
+  const grad = ctx.createRadialGradient(cx - R*0.35, cy - R*0.35, R*0.2, cx, cy, R*1.05);
+  if(planet==='earth'){ grad.addColorStop(0,'#224b87'); grad.addColorStop(1,'#0a1220'); } else { grad.addColorStop(0,'#8b3f2b'); grad.addColorStop(1,'#2a0f0b'); }
+  ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2); ctx.fillStyle=grad; ctx.fill(); ctx.lineWidth=1.2; ctx.strokeStyle='rgba(255,255,255,.08)'; ctx.stroke();
+  ctx.save(); ctx.clip(); ctx.strokeStyle = 'rgba(255,255,255,.07)'; ctx.lineWidth=0.8;
+  for(let lat=-60; lat<=60; lat+=30){ ctx.beginPath(); for(let lon=-180; lon<=180; lon+=3){ const P = proj(lon, lat); if(!P.visible) continue; if(lon===-180) ctx.moveTo(P.x,P.y); else ctx.lineTo(P.x,P.y);} ctx.stroke(); }
+  for(let lon=-180; lon<=180; lon+=30){ ctx.beginPath(); for(let lat=-80; lat<=80; lat+=2){ const P = proj(lon, lat); if(!P.visible) continue; if(lat===-80) ctx.moveTo(P.x,P.y); else ctx.lineTo(P.x,P.y);} ctx.stroke(); }
+  ctx.restore();
+}
+function drawParetoBar(){ if(weights.length===0) return; const x=12, y=12, W=320, H=50; ctx.save(); ctx.fillStyle='rgba(16,20,30,.78)'; ctx.strokeStyle='#27304a'; ctx.lineWidth=1; ctx.beginPath(); if(ctx.roundRect) ctx.roundRect(x,y,W,H,10); else { ctx.rect(x,y,W,H);} ctx.fill(); ctx.stroke(); const arr = weights.slice().sort((a,b)=>b-a); let cum=0; let kStar=arr.length; for(let i=0;i<arr.length;i++){ cum+=arr[i]; if(cum>=cfg.targetMass){ kStar=i+1; break; } } const headFrac = kStar/arr.length; const headW = Math.floor(W*headFrac); ctx.fillStyle='rgba(110,231,166,.35)'; ctx.fillRect(x+1, y+H-16, headW-2, 10); ctx.fillStyle='rgba(97,218,251,.25)'; ctx.fillRect(x+headW, y+H-16, W-headW-1, 10); ctx.fillStyle='#cfe8ff'; ctx.font='12px ui-monospace'; ctx.fillText(`Pareto — τ=${cfg.paretoTau.toFixed(2)} • head ${kStar}/${arr.length} • mass ${Math.min(cum,1).toFixed(2)}`, x+8, y+18); Fusion.ds.headK=kStar; Fusion.ds.headN=arr.length; Fusion.ds.headMass=Math.min(cum,1); statK.textContent = `${kStar}/${arr.length} • ${Fusion.ds.headMass.toFixed(2)}`; ctx.restore(); }
+
+function renderGlobe(tNow){
+  const dtSec = Math.min(0.1, (tNow - lastGlobeT)/1000); lastGlobeT = tNow;
+  if(cfg.autoPareto && points.length>0) autoAdjustTau(dtSec);
+  const W=stage.clientWidth, H=stage.clientHeight; ctx.clearRect(0,0,W,H); ctx.fillStyle='#070a12'; ctx.fillRect(0,0,W,H);
+  drawGlobeBase();
+  const P0 = proj(globe.lon0, globe.lat0); const cx=P0.cx, cy=P0.cy, R=P0.R;
+  const lockedIdx=[...lockSet]; const ds=computeDS2Dual(lockedIdx);
+  ctx.strokeStyle='rgba(159,122,234,.85)'; ctx.lineWidth=2; ctx.beginPath(); ctx.ellipse(cx, cy, R*0.35*(.6+.6*ds.g), R*0.35*(.6+.6*ds.v), 0, 0, Math.PI*2); ctx.stroke();
+  for(let i=0;i<points.length;i++){ const P=proj(points[i].lon, points[i].lat); const p = points[i]; p.x=P.x; p.y=P.y; p.visible=P.visible; if(!p.visible) continue; const w=weights[i]||0; const rPt = 1.5 + 3.5*w * (H>900?1.2:1.0); const locked=lockSet.has(i); const dimIdx = DIMENSIONS.indexOf(p.dim); const baseHue = (dimIdx*37)%360; const hue = (p.mood>=0)? (baseHue*0.7 + 120*0.3) : (baseHue*0.7 + 0*0.3); const alpha = 0.55 + 0.35*w; ctx.beginPath(); ctx.fillStyle = locked ? `hsl(160 90% 60% / .95)` : `hsl(${hue} 80% 60% / ${alpha})`; ctx.strokeStyle = locked ? 'rgba(110,231,166,.85)' : (p.mood>=0 ? 'rgba(110,231,166,.28)' : 'rgba(248,113,113,.28)'); ctx.lineWidth = locked ? 1.4 : 0.8; ctx.arc(p.x,p.y,rPt*(locked?1.25:1.0),0,Math.PI*2); ctx.fill(); ctx.stroke(); if(locked){ ctx.beginPath(); ctx.setLineDash([3,3]); ctx.strokeStyle='rgba(110,231,166,.25)'; ctx.arc(p.x,p.y,rPt*2.0,0,Math.PI*2); ctx.stroke(); ctx.setLineDash([]); } }
+  const {scores, dsLocal} = lensScores(); ctx.save(); ctx.beginPath(); ctx.arc(cx,cy,P0.R,0,Math.PI*2); ctx.clip(); ctx.save(); ctx.beginPath(); lensPath(ctx); ctx.clip(); for(let i=0;i<points.length;i++){ if(scores[i]<=0 || !points[i].visible) continue; const p=points[i], s=scores[i]; const a=.25 + .55*s; const col = (lens.mode==='infosophic') ? `hsla(195, 90%, 60%, ${a})` : `hsla(40, 95%, 60%, ${a})`; ctx.beginPath(); ctx.fillStyle=col; ctx.arc(p.x,p.y, 1.8+3*s,0,Math.PI*2); ctx.fill(); } ctx.restore(); ctx.lineWidth=2.2; ctx.setLineDash([6,4]); ctx.strokeStyle = lens.mode==='infosophic' ? 'rgba(97,218,251,.9)' : 'rgba(251,191,36,.9)'; ctx.beginPath(); lensPath(ctx); ctx.stroke(); ctx.setLineDash([]); const Pc = proj(lens.lon, lens.lat); ctx.fillStyle='rgba(16,20,30,.85)'; ctx.strokeStyle='#27304a'; ctx.lineWidth=1; const label = lens.mode==='infosophic' ? 'Infosophic lens (∇⁻¹)' : 'Simulonic lens (∇¹)⁻¹'; const text = `${label} • r=${lens.ang}° • local ds²=${dsLocal.toFixed(3)}`; ctx.font='12px ui-monospace'; const wLab=ctx.measureText(text).width+12, hLab=20; ctx.beginPath(); if(ctx.roundRect) ctx.roundRect(Pc.x - wLab/2, Pc.y - 30, wLab, hLab, 6); else { ctx.rect(Pc.x - wLab/2, Pc.y - 30, wLab, hLab);} ctx.fill(); ctx.stroke(); ctx.fillStyle='#cfe8ff'; ctx.fillText(text, Pc.x - wLab/2 + 6, Pc.y - 16); ctx.restore();
+  drawParetoBar();
+  Fusion.ds.g = ds.g; Fusion.ds.v = ds.v; Fusion.ds.local = dsLocal;
+  statG.textContent = ds.g.toFixed(3); statV.textContent = ds.v.toFixed(3);
+  requestAnimationFrame(renderGlobe);
+}
+
+/* Initialize */
+syncControls(); buildOutlookGrid(); buildART(); requestAnimationFrame(renderGlobe);
+
+/* ========================= Warp Graph (SVG) ========================= */
+const svg = document.getElementById('graph');
+const nodeLayer = document.getElementById('nodes');
+const edgeLayer = document.getElementById('edges');
+const particleLayer = document.getElementById('particles');
+
+const CORE = [
+  { id:'INC', label:'Inertial Null Core', sub:'Nullness • Stability', r:28, x:170, y:340 },
+  { id:'MEA', label:'Membrane Emitter Array', sub:'Gain • Density', r:26, x:430, y:130 },
+  { id:'HO',  label:'Harmonic Oscillator', sub:'Frequency • Q', r:26, x:770, y:340 },
+];
+const CENTER = { x:500, y:340, R:150 };
+const SFGS = Array.from({length:12}, (_,i) => { const a = (i/12)*Math.PI*2; return { id:`SFG${i+1}`, label:'SFG', sub:`Field Gen #${i+1}`, r:18, x: CENTER.x + CENTER.R*Math.cos(a), y: CENTER.y + CENTER.R*Math.sin(a) }; });
+const ALL = [...CORE, ...SFGS];
+
+const NS = 'http://www.w3.org/2000/svg';
+function makeNode(n){ const g = document.createElementNS(NS,'g'); g.classList.add('node-wrap'); g.dataset.id=n.id; g.setAttribute('transform', `translate(${n.x},${n.y})`); const hit = document.createElementNS(NS,'circle'); hit.setAttribute('class','hit'); hit.setAttribute('r', n.r+20); const c = document.createElementNS(NS,'circle'); c.setAttribute('class','node'); c.setAttribute('r', n.r); const t1 = document.createElementNS(NS,'text'); t1.setAttribute('class','label'); t1.setAttribute('text-anchor','middle'); t1.setAttribute('dy', -(n.r+20)); t1.textContent = n.label; const t2 = document.createElementNS(NS,'text'); t2.setAttribute('class','sublabel'); t2.setAttribute('text-anchor','middle'); t2.setAttribute('dy', n.r+22); t2.textContent = n.sub; g.appendChild(hit); g.appendChild(c); g.appendChild(t1); g.appendChild(t2); nodeLayer.appendChild(g); n.g=g; n.hit=hit; n.circ=c; }
+ALL.forEach(makeNode);
+
+// Drag core nodes
+CORE.forEach(n=>enableDrag(n));
+function enableDrag(n){ let dragging=false, ox=0, oy=0; n.hit.addEventListener('pointerdown', e=>{ dragging=true; e.target.setPointerCapture(e.pointerId); ox = e.clientX - n.x; oy = e.clientY - n.y; }); window.addEventListener('pointermove', e=>{ if(!dragging) return; n.x = Math.max(40, Math.min(960, e.clientX - ox)); n.y = Math.max(60, Math.min(640, e.clientY - oy)); n.g.setAttribute('transform', `translate(${n.x},${n.y})`); updateAllEdges(); }); window.addEventListener('pointerup', ()=> dragging=false); }
+
+// Edges complete graph
+const edges = []; // {a,b,path,main}
+function bez(a,b,bulge=24){ const dx=b.x-a.x, dy=b.y-a.y, mx=(a.x+b.x)/2, my=(a.y+b.y)/2; const len = Math.hypot(dx,dy)||1, ux=-dy/len, uy=dx/len; const cx = mx + ux*bulge, cy = my + uy*bulge; return `M ${a.x} ${a.y} Q ${cx} ${cy} ${b.x} ${b.y}`; }
+function addEdge(a,b, main=false){ const p = document.createElementNS(NS,'path'); p.setAttribute('class','edge' + (main?' main':'')); p.setAttribute('stroke','url(#flux)'); p.setAttribute('d', bez(a,b, main?40:24)); edgeLayer.appendChild(p); edges.push({a,b,path:p,main}); }
+addEdge(ALL.find(n=>n.id==='INC'), ALL.find(n=>n.id==='MEA'), true);
+addEdge(ALL.find(n=>n.id==='MEA'), ALL.find(n=>n.id==='HO'),  true);
+addEdge(ALL.find(n=>n.id==='HO'),  ALL.find(n=>n.id==='INC'), true);
+for(let i=0;i<ALL.length;i++){ for(let j=i+1;j<ALL.length;j++){ const ia=ALL[i].id, jb=ALL[j].id; const isMain = (ia==='INC'&&jb==='MEA')||(ia==='MEA'&&jb==='HO')||(ia==='HO'&&jb==='INC'); if(!isMain) addEdge(ALL[i], ALL[j], false); } }
+function updateAllEdges(){ edges.forEach(e=> e.path.setAttribute('d', bez(e.a,e.b, e.main?40:24))); }
+
+// Particles
+const MAX_PARTICLES = 900; const particles = []; // {el, path, t, speed}
+function spawnParticleOnPath(path, intensity=1){ if(particles.length >= MAX_PARTICLES){ const old = particles.shift(); if(old && old.el && old.el.parentNode) old.el.parentNode.removeChild(old.el); } const el = document.createElementNS(NS,'circle'); el.setAttribute('class','particle'); const baseR = 2.8; el.setAttribute('r', (baseR + Math.random()*1.4*intensity).toFixed(2)); particleLayer.appendChild(el); const p = { el, path, t: Math.random()*0.2, speed: 0.0022 + Math.random()*0.003*intensity }; particles.push(p); try { const len = path.getTotalLength(); const pt  = path.getPointAtLength(p.t * len); el.setAttribute('cx', pt.x); el.setAttribute('cy', pt.y); el.setAttribute('opacity', 0.55 + 0.4*(1-p.t)); } catch(e){}
+}
+function connectedEdgesOf(node){ return edges.filter(e=> e.a===node || e.b===node); }
+function burstFromNode(node, magnitude=1){ const connected = connectedEdgesOf(node); connected.forEach(e=> e.path.classList.add('active')); setTimeout(()=> connected.forEach(e=> e.path.classList.remove('active')), 900); const count = Math.floor(8 + 16*magnitude); for(const e of connected){ for(let i=0;i<count;i++) spawnParticleOnPath(e.path, 0.9 + 0.6*magnitude); } }
+function continuousEmit(){ const flux = +document.getElementById('flux').value; const emitEdges = Math.floor(2 + flux * 14); for(let i=0;i<emitEdges;i++){ const e = edges[(Math.random()*edges.length)|0]; const intensity = 0.6 + 0.9*flux; spawnParticleOnPath(e.path, intensity); } }
+
+// Warp mechanics
+const warpCounter = Object.fromEntries(ALL.map(n=>[n.id,0]));
+const WARP_THRESHOLD = 5;
+function doWarp(n){ n.g.classList.add('warping'); setTimeout(()=> n.g.classList.remove('warping'), 620); if(n.id.startsWith('SFG')){ const j=6; n.x += (Math.random()*2-1)*j; n.y += (Math.random()*2-1)*j; n.g.setAttribute('transform', `translate(${n.x},${n.y})`); updateAllEdges(); } }
+ALL.forEach(n=>{ n.hit.addEventListener('click', ()=>{ burstFromNode(n, 1.2); warpCounter[n.id] += 1; if(warpCounter[n.id] >= WARP_THRESHOLD){ warpCounter[n.id]=0; doWarp(n); } }); });
+
+// Meters (shared)
+const bias = document.getElementById('bias');
+const flux = document.getElementById('flux');
+const o_bias = document.getElementById('o_bias');
+const o_flux = document.getElementById('o_flux');
+[bias,flux].forEach(s=> s.addEventListener('input', ()=>{ if(s===bias) o_bias.textContent = (+bias.value).toFixed(2); if(s===flux) o_flux.textContent = (+flux.value).toFixed(2); }));
+const couplingVal  = document.getElementById('couplingVal');
+const coherenceVal = document.getElementById('coherenceVal');
+const readinessVal = document.getElementById('readinessVal');
+
+function computeRingSymmetry(){ const targetR = CENTER.R; let acc = 0; for(const s of SFGS){ const dr = Math.hypot(s.x-CENTER.x, s.y-CENTER.y) - targetR; acc += Math.max(0, 1 - Math.min(1, Math.abs(dr)/20)); } return acc / SFGS.length; }
+function computeWarpState(){ const particleFactor = Math.min(1, particles.length / MAX_PARTICLES); const ringSymmetry = computeRingSymmetry(); const couplingBase = Math.max(0, Math.min(1, 0.30*particleFactor + 0.25*ringSymmetry + 0.45*(+flux.value)));
+  const coherenceBase = Math.max(0, Math.min(1, 0.45*ringSymmetry + 0.20*particleFactor + 0.35*(1 - Math.abs(+bias.value-0.5)*2)));
+  // policy‑crux: add boost from globe ds²
+  const dsBoost = Math.max(0, Fusion.ds.g - 0.6) * 0.25; // only after 0.6
+  const coupling = Math.min(1, couplingBase + dsBoost);
+  const coherence = Math.min(1, coherenceBase + dsBoost*0.8);
+  let readiness='Idle', cls='warn';
+  if(coupling>0.75 && coherence>0.75){ readiness='Warp-Ready'; cls='ok' }
+  else if(coupling>0.5 && coherence>0.5){ readiness='Aligning'; cls='warn' }
+  else { readiness='Unstable'; cls='bad' }
+  return {coupling, coherence, readiness, cls};
+}
+
+let running = true, lastWarp=performance.now()/1000;
+function tickWarp(ms){
+  const now=ms/1000, dt=Math.min(0.05, now-lastWarp); lastWarp=now;
+  continuousEmit();
+  const speedScale = 0.35 + 1.6*(+flux.value);
+  for(let i=particles.length-1; i>=0; i--){ const p = particles[i]; p.t += p.speed * speedScale * (1 + 0.25*Math.sin(now*2 + i)); if(p.t >= 1){ if(p.el && p.el.parentNode) p.el.parentNode.removeChild(p.el); particles.splice(i,1); continue; } try{ const len = p.path.getTotalLength(); const pt  = p.path.getPointAtLength(p.t * len); p.el.setAttribute('cx', pt.x); p.el.setAttribute('cy', pt.y); p.el.setAttribute('opacity', 0.6 + 0.35*(1 - p.t)); }catch(e){} }
+  const S = computeWarpState();
+  couplingVal.textContent  = S.coupling.toFixed(2);
+  coherenceVal.textContent = S.coherence.toFixed(2);
+  readinessVal.textContent = S.readiness;
+  readinessVal.className = 'v ' + (S.cls==='ok'?'ok':S.cls==='warn'?'warn':'bad');
+  Fusion.warp.coupling=S.coupling; Fusion.warp.coherence=S.coherence; Fusion.warp.readiness=S.readiness;
+
+  // policy‑crux back‑pressure: warp influences globe
+  if(S.readiness==='Warp-Ready'){
+    // sharpen field quality Q slowly and gently widen/contract lens toward 18°
+    cfg.qualityQ = Math.min(3, cfg.qualityQ + 0.02*dt*60);
+    rngQ.value = cfg.qualityQ; labQ.textContent = cfg.qualityQ.toFixed(2);
+    const targetR = 18; lens.ang += (targetR - lens.ang) * 0.04; rngLensR.value = Math.round(lens.ang);
+  } else if(S.readiness==='Aligning'){
+    // subtle nudge toward default
+    const targetR = 22; lens.ang += (targetR - lens.ang) * 0.02; rngLensR.value = Math.round(lens.ang);
+  }
+
+  if(running) requestAnimationFrame(tickWarp);
+}
+requestAnimationFrame(tickWarp);
+
+// Controls for warp
+document.getElementById('toggle').addEventListener('click', (e)=>{ running = !running; e.target.textContent = running ? 'Pause' : 'Resume'; if(running){ lastWarp = performance.now()/1000; requestAnimationFrame(tickWarp); }});
+document.getElementById('reset').addEventListener('click', ()=>{ bias.value=0.50; flux.value=0.80; o_bias.textContent='0.50'; o_flux.textContent='0.80'; SFGS.forEach((s,i)=>{ const a=(i/12)*Math.PI*2; s.x=CENTER.x + CENTER.R*Math.cos(a); s.y=CENTER.y + CENTER.R*Math.sin(a); s.g.setAttribute('transform', `translate(${s.x},${s.y})`); }); for(const k in warpCounter) warpCounter[k]=0; updateAllEdges(); cfg=parseSimuLang(defaultSimuLang); syncControls(); buildART(); });
+document.getElementById('burst').addEventListener('click', ()=>{ ALL.forEach(n=> burstFromNode(n, 1.4)); });
+
+// Kickstart particles
+for(let i=0;i<200;i++){ const e = edges[(Math.random()*edges.length)|0]; spawnParticleOnPath(e.path, 0.9); }
+
+</script>
+</body>
+</html>
